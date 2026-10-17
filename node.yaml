@@ -1,0 +1,136 @@
+# iowap-paperless node capability profile (T-232).
+#
+# Deployed on Proxmox CT 106 NEXT TO Paperless-ngx (compose.yml). handlers/
+# holds executable Python scripts per the node handler contract
+# (stdin = {task_id, capability, input}, stdout = {status, result, error}).
+# Paperless' own Tesseract OCR is the text source — no second OCR here.
+
+node_name: paperless-node
+description: "Paperless-ngx document-management node (ingest pipeline + query/metadata capabilities)"
+
+capabilities:
+  - name: paperless.upload
+    version: "1.0.0"
+    type: storage
+    description: "Upload a local file via post_document and poll the consume task to the doc id."
+    auto_publish: true
+    claimable: true
+    handler: /app/handlers/paperless_upload.py
+    max_parallel: 2
+    timeout: 240
+    upload_modes: [inline, artifact, bridge]
+    input_schema:
+      fields:
+        path:
+          name: path
+          type: string
+          required: true
+          description: "Local file path readable by this node."
+        title:
+          name: title
+          type: string
+          required: false
+          description: "Optional initial title (Paperless may overwrite during consume)."
+
+  - name: paperless.search
+    version: "1.0.0"
+    type: search
+    description: "Query documents by full-text query; resolves tag ids to names."
+    auto_publish: true
+    claimable: true
+    handler: /app/handlers/paperless_search.py
+    max_parallel: 3
+    timeout: 60
+    input_schema:
+      fields:
+        query:
+          name: query
+          type: string
+          required: false
+        limit:
+          name: limit
+          type: integer
+          required: false
+
+  - name: paperless.tag
+    version: "1.0.0"
+    type: write
+    description: "Append or replace tags (names or ids) on a document. Tag creation is out of scope."
+    auto_publish: true
+    claimable: true
+    handler: /app/handlers/paperless_tag.py
+    max_parallel: 2
+    timeout: 60
+    input_schema:
+      fields:
+        doc_id:
+          name: doc_id
+          type: integer
+          required: true
+        tags:
+          name: tags
+          type: array
+          required: true
+        mode:
+          name: mode
+          type: string
+          required: false
+          description: "append (default) or replace."
+
+  - name: paperless.apply
+    version: "1.0.0"
+    type: write
+    description: "Write-back capability: sets doc title and tags (and optional correspondent) from a flow verdict."
+    auto_publish: true
+    claimable: true
+    handler: /app/handlers/paperless_apply.py
+    max_parallel: 2
+    timeout: 60
+    input_schema:
+      fields:
+        doc_id:
+          name: doc_id
+          type: integer
+          required: true
+        title:
+          name: title
+          type: string
+          required: false
+        tags:
+          name: tags
+          type: array
+          required: false
+        correspondent:
+          name: correspondent
+          type: string
+          required: false
+
+  - name: paperless.inbox
+    version: "1.0.0"
+    type: search
+    description: "Count documents under the inbox tag (PAPERLESS_INBOX_TAG, default Posteingang)."
+    auto_publish: true
+    claimable: true
+    handler: /app/handlers/paperless_inbox.py
+    max_parallel: 2
+    timeout: 60
+    input_schema:
+      fields: {}
+
+  - name: paperless.watch
+    version: "1.0.0"
+    type: workflow
+    description: "long_run ingest starter: consume-poll → doc+content fetch → PDF artifact → document-ingest flow submit. Run once; keepalive notes hold the lease."
+    auto_publish: true
+    claimable: true
+    long_run: true
+    handler: /app/handlers/paperless_watch.py
+    max_parallel: 1
+    timeout: 86400
+    input_schema:
+      fields:
+        text_chars:
+          name: text_chars
+          type: integer
+          required: false
+          description: "Cap for the OCR text passed to doc.process (default 6000)."

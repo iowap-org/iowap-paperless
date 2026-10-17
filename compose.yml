@@ -1,0 +1,32 @@
+# Deploy the iowap-paperless node NEXT TO Paperless on the Proxmox CT 106
+# (T-232). The node talks to Paperless per service name and shares the
+# consume-dir; its own identity lives on a named volume (node_id + token
+# survive restarts, no re-registration). Approve the node in the relay
+# dashboard once.
+#
+# Run:    docker compose -p iowap-paperless -f compose.yml up -d
+# First:  the watcher capability is a long_run task — submit it once:
+#   docker compose exec iowap-paperless node-cli task submit --stage 'paperless.watch:{}'
+#
+# Requires: the paperless service reachable per DNS name `paperless`
+# (add a network alias if Paperless runs in a different project).
+
+services:
+  iowap-paperless:
+    image: ghcr.io/iowap-org/iowap-node-base:latest
+    container_name: iowap-paperless
+    restart: unless-stopped
+    environment:
+      RELAY_URL: ${RELAY_URL:-http://192.168.2.60:8788}
+      NODE_NAME: paperless-node
+      PAPERLESS_URL: http://paperless:8000
+      PAPERLESS_TOKEN: ${PAPERLESS_TOKEN:?set PAPERLESS_TOKEN (PAPERLESS_ngx admin token)}
+      PAPERLESS_INBOX_TAG: ${PAPERLESS_INBOX_TAG:-Posteingang}
+      PAPERLESS_POLL_SECONDS: 15
+    volumes:
+      - paperless-state:/home/appuser/.relay        # node identity — never lose
+      - ${PAPERLESS_CONSUME_DIR:-./consume}:/consume # same mount paperless consumes
+    command: /bin/sh /app/entrypoint.sh
+
+volumes:
+  paperless-state:
