@@ -1,9 +1,9 @@
 # iowap-paperless
 
 Document-management node for the [IOWAP mesh](https://github.com/iowap-org/iowap).
-It wraps a Paperless-ngx instance as ordinary IOWAP capabilities — no MCP
-server, no new protocol on this node: tasks arrive through the standard IOWAP
-claim/SSE path, handlers talk to the local Paperless API.
+It wraps a Paperless-ngx instance as ordinary IOWAP capabilities: tasks
+arrive through the standard IOWAP claim/SSE path, handlers talk to the
+local Paperless API.
 
 The centerpiece is the **document-ingest pipeline** (a finished flow):
 
@@ -32,7 +32,7 @@ in the loop.
 | NovaForge node | Mac mini | `doc.process` LLM verdict |
 | relay | LXC 903 | routes tasks, carries artifacts, runs the flow |
 
-The NovaForge verdict asks the local Hermes API Server (not MCP: a direct
+The NovaForge verdict asks the local Hermes API Server (a direct
 `agent.ai`-pattern HTTP call,
 `http://127.0.0.1:8642/v1/chat/completions`, Bearer `API_SERVER_KEY`) for a
 strict-JSON verdict; fenced output is stripped. The key lives only in the
