@@ -37,6 +37,69 @@ INGEST_TASK = os.environ.get(
     "correspondent=${{step1.result.correspondent}}",
 )
 
+# GLM-OCR-Route: vorgeschaltet, wenn Paperless' content zu dünn ist
+# (Scan-PDF ohne brauchbaren Tesseract-Text, Bild-Dokumente).
+INGEST_TASK_OCR = os.environ.get(
+    "IOWAP_INGEST_OCR_TASK",
+    "document-ingest (OCR route) for paperless doc {doc_id} ({name}): "
+    "step 1 run doc.ocr with image_path {ocr_path!r} and mode text; "
+    "it returns the recognized text. "
+    "step 2 run doc.process with document_text: ${{step1.result.text!r}} (document: {name}); "
+    "it returns title and tags. "
+    "step 3 run paperless.apply with doc_id={doc_id}, "
+    "tags=${{step2.result.tags}}, title=${{step2.result.title}}, "
+    "correspondent=${{step2.result.correspondent}}",
+)
+
+MEDIA_DIR = os.environ.get("PAPERLESS_MEDIA_DIR", "")
+MIN_CONTENT_CHARS = int(os.environ.get("IOWAP_GATE_MIN_CHARS", "120"))
+VERBATIM_EXT = {".txt", ".md", ".csv"}
+IMAGE_EXT = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".gif", ".webp", ".bmp"}
+
+
+def doc_gate(doc: dict, content: str) -> tuple[str, str]:
+    """Flow-route decision (doc.gate): returns (route, ocr_path-or-empty).
+
+    - verbatim/text-rich → INGEST_TASK (Tesseract/paperless content ist die Quelle)
+    - content-arm (Scan-PDF/Hände-Layout) oder Bild → INGEST_TASK_OCR
+      (GLM-OCR fressen die paperless-Thumbnails-Seite)
+    digital PDFs mit Text-Layer landen automatisch in der Text-Route,
+    weil Paperless' consume sie OHNE OCR liest („OCR the document, if it
+    has no text") — der content ist dann der embedded Text.
+    """
+    name = doc.get("original_filename") or f"doc-{doc.get('id')}"
+    ext = os.path.splitext(name)[1].lower()
+    if ext in VERBATIM_EXT:
+        return "verbatim", ""
+    if ext in IMAGE_EXT:
+        thumb = thumbnail_path(doc, name)
+        if thumb:
+            return "image-vlm", thumb
+        return "image-vlm", ""
+    # PDF & unbekannt: Content-Länge entscheidet (digitale PDFs = reicher Text!)
+    if len(content.strip()) < MIN_CONTENT_CHARS:
+        thumb = thumbnail_path(doc, name)
+        if thumb:
+            return "ocr-route", thumb
+        return "ocr-route", ""
+    return "text-rich", ""
+
+
+def thumbnail_path(doc: dict, name: str) -> str:
+    """Paperless erzeugt je Doc ein Seiten-PNG (media/thumbnails/…) — der
+    GLM-OCR-Input. Ohne MEDIA_DIR-Mount bleibt die Route nur textbasiert."""
+    if not MEDIA_DIR:
+        return ""
+    doc_id = doc.get("id")
+    for cand in (os.path.join(MEDIA_DIR, "thumbnails", f"webp", f"{doc_id}.webp"),
+                 os.path.join(MEDIA_DIR, "thumbnails", f"{doc_id}.png"),
+                 os.path.join(MEDIA_DIR, "thumbnails", f"{doc_id}.webp")):
+        if os.path.isfile(cand):
+            return cand
+    import glob
+    hits = sorted(glob.glob(os.path.join(MEDIA_DIR, "thumbnails", f"{doc_id}.*")))
+    return hits[0] if hits else ""
+
 
 def cli(*args: str, capture: bool = True) -> str:
     argv = [CLI, *args, "--json"]
@@ -80,16 +143,31 @@ def main() -> None:
                 content = (doc.get("content") or "")[:text_cap]
                 title = doc.get("title") or f"doc {doc_id}"
                 pdf_name = doc.get("original_filename") or f"doc-{doc_id}.pdf"
+                route, ocr_path = doc_gate(doc, content)
+                try:  # note the branch — sichtbar im task & im Log
+                    cli("task", "note", f"doc.gate doc_id={doc_id}: route={route}, ocr_path={ocr_path or '-'}")
+                except Exception:  # noqa: BLE001
+                    pass
+                if ocr_path:
+                    text_for_template = ""
+                else:
+                    text_for_template = content.replace('"', "'")
                 with tempfile.TemporaryDirectory() as tmp:
                     pdf_path = os.path.join(tmp, pdf_name)
                     open(pdf_path, "wb").write(api_binary(f"/api/documents/{doc_id}/download/"))
                     ref = hp_put(pdf_path, "paperless.watch")
+                template = INGEST_TASK_OCR if ocr_path else INGEST_TASK
+                if ocr_path:
+                    body_text = template.format(
+                        doc_id=doc_id, name=pdf_name, ocr_path=ocr_path, title=title,
+                        text=text_for_template)
+                else:
+                    body_text = template.format(
+                        doc_id=doc_id, title=title, name=pdf_name, text=text_for_template)
                 stage = json.dumps({
                     "mode": "ad_hoc",
-                    "task": INGEST_TASK.format(
-                        doc_id=doc_id, title=title, name=pdf_name,
-                        text=content.replace('"', "'")),
-                    "options": {"pdf": ref},
+                    "task": body_text,
+                    "options": {"pdf": ref, "route": route},
                 })
                 submit = cli("task", "submit", "--stage", f"flow.run:{stage}")
                 try:
