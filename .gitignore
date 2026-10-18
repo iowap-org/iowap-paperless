@@ -1,0 +1,7 @@
+# Runtime/local artifacts
+__pycache__/
+*.pyc
+
+# Machine-specific NovaForge profiles (Mac Mini) belong on that host,
+# not in this public paperless-node repo.
+novaforge/
