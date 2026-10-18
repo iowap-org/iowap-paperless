@@ -7,7 +7,7 @@ claim/SSE path, handlers talk to the local Paperless API.
 
 The centerpiece is the **document-ingest pipeline** (a finished flow):
 
-```
+```text
 paper in consume dir → Paperless consumes it (Tesseract OCR, deu+eng)
   → node sees the successful consume task (API poll, no inotify)
   → fetches doc + content, http-puts the PDF as an artifact
@@ -26,25 +26,33 @@ in the loop.
 ## Roles and local infrastructure
 
 | Piece | Where | What it does |
-|---|---|---|
-| Paperless-ngx (Tesseract OCR, deu+eng) | CT 106 | consumes paper, produces text |
-| iowap-paperless node (this repo) | CT 106, next to Paperless (compose network) | watcher (ingest) + writer (apply), six capabilities |
-| NovaForge node | Mac mini | `doc.process`: LLM verdict via the local Hermes API Server (`http://127.0.0.1:8642/v1/chat/completions`, Bearer `API_SERVER_KEY`), `agent.ai` pattern, strict JSON, fenced output stripped |
-| relay | LXC 903 | routes tasks, carries artifacts, runs `flow.run(document-ingest)` |
+| --- | --- | --- |
+| Paperless-ngx (OCR deu+eng) | CT 106 | consumes paper, produces text |
+| iowap-paperless node | CT 106 | watcher + writer role |
+| NovaForge node | Mac mini | `doc.process` LLM verdict |
+| relay | LXC 903 | routes tasks, carries artifacts, runs the flow |
+
+The NovaForge verdict asks the local Hermes API Server (the `agent.ai`
+pattern: `http://127.0.0.1:8642/v1/chat/completions`, Bearer
+`API_SERVER_KEY`) for a strict-JSON verdict; fenced output is stripped.
+Result fields: `title`, `tags[]`, `correspondent`, `summary`, `confidence`.
 
 ## Capabilities (this node)
 
 | Capability | Purpose | result fields |
-|---|---|---|
-| `paperless.upload` | POST a local file to `post_document/`, poll the consume task to the doc id | `doc_id` |
-| `paperless.search` | query documents (title/content), tag names resolved | `count`, `documents[]` |
-| `paperless.tag` | append/replace tags by name or id on a doc | `doc_id`, `tag_ids` |
-| `paperless.apply` | write flow verdicts (title + tags + optional correspondent) into a doc | `doc_id`, `applied` |
-| `paperless.inbox` | count docs under the inbox tag (`PAPERLESS_INBOX_TAG`) | `inbox_tag`, `count` |
-| `paperless.watch` | **long_run** ingest starter: consume-poll → artifact → flow-submit → keepalive notes | — |
+| --- | --- | --- |
+| `paperless.upload` | POST to `post_document/`, poll to doc | `doc_id` |
+| `paperless.search` | search by title/content | `count`, `documents[]` |
+| `paperless.tag` | append/replace tags by name or id | `doc_id`, `tag_ids` |
+| `paperless.apply` | write verdicts into a doc | `doc_id`, `applied` |
+| `paperless.inbox` | count docs under inbox tag | `inbox_tag`, `count` |
+| `paperless.watch` | **long_run** ingest starter | — |
 
-Full handler contract (stdin JSON envelope, stdout result envelope):
-[iowap-node handler contract](https://github.com/iowap-org/iowap-docs/blob/main/node/handlers/contract.md).
+The node runs in the Paperless compose network. `upload` polls the
+consume task to its doc id; `watch` runs
+consume-poll → artifact upload → flow-submit → keepalive notes until
+stopped. The full handler contract (stdin envelope, stdout envelope) lives
+in iowap-docs at `node/handlers/contract.md`.
 
 ## Operating this node with an AI agent
 
