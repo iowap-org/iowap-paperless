@@ -32,10 +32,12 @@ in the loop.
 | NovaForge node | Mac mini | `doc.process` LLM verdict |
 | relay | LXC 903 | routes tasks, carries artifacts, runs the flow |
 
-The NovaForge verdict asks the local Hermes API Server (the `agent.ai`
-pattern: `http://127.0.0.1:8642/v1/chat/completions`, Bearer
-`API_SERVER_KEY`) for a strict-JSON verdict; fenced output is stripped.
-Result fields: `title`, `tags[]`, `correspondent`, `summary`, `confidence`.
+The NovaForge verdict asks the local Hermes API Server (not MCP: a direct
+`agent.ai`-pattern HTTP call,
+`http://127.0.0.1:8642/v1/chat/completions`, Bearer `API_SERVER_KEY`) for a
+strict-JSON verdict; fenced output is stripped. The key lives only in the
+NovaForge environment. Result fields: `title`, `tags[]`, `correspondent`,
+`summary`, `confidence`.
 
 ## Capabilities (this node)
 
@@ -53,20 +55,6 @@ consume task to its doc id; `watch` runs
 consume-poll → artifact upload → flow-submit → keepalive notes until
 stopped. The full handler contract (stdin envelope, stdout envelope) lives
 in iowap-docs at `node/handlers/contract.md`.
-
-## Operating this node with an AI agent
-
-Unchanged for humans and tooling: everything above is plain IOWAP — submit
-with `node-cli`, watch results on the relay dashboard.
-
-MCP only becomes relevant when you run nodes with an AI agent (a Hermes
-profile, OpenCode, …): in that case the agent reaches these same capabilities
-through the [iowap-client-mcp](https://github.com/iowap-org/iowap-client-mcp)
-toolkit (`capabilities_list` shows this node's paperless caps with their
-schemas, `task_submit` fires them). There is still no MCP server here — the
-agent side brings the MCP surface, the node stays a plain task executor.
-The `doc.process` verdict additionally needs the API server key in the
-NovaForge environment (`API_SERVER_KEY`), never stored on this node.
 
 ## Deploy (CT 106, next to Paperless)
 
