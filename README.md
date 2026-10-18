@@ -1,25 +1,36 @@
 # iowap-paperless
 
-Document-management node for the [IOWAP mesh](https://github.com/iowap-org/iowap)
-— wraps a Paperless-ngx instance as capabilities so agents file and
-question documents through the standard seven MCP tools. No new MCP
-server needed; the mesh extends instead.
+Document-management node for the [IOWAP mesh](https://github.com/iowap-org/iowap).
+It wraps a Paperless-ngx instance as ordinary IOWAP capabilities — no MCP
+server, no new protocol on this node: tasks arrive through the standard IOWAP
+claim/SSE path, handlers talk to the local Paperless API.
 
 The centerpiece is the **document-ingest pipeline** (a finished flow):
 
 ```
 paper in consume dir → Paperless consumes it (Tesseract OCR, deu+eng)
   → node sees the successful consume task (API poll, no inotify)
-  → fetches doc + content, hp-puts the PDF as an artifact
+  → fetches doc + content, http-puts the PDF as an artifact
   → submits flow.run(document-ingest):
       step 1  doc.process (AI verdict: title, tags, correspondent)
       step 2  paperless.apply (writes title/tags back, doc_id from step 1)
   → paper is filed automatically, without any agent being involved
 ```
 
-The paperless node carries both endpoint roles of the pipeline — watcher
-(ingest) and writer (apply) — while the thinking happens on `doc.process`
-(run on NovaForge, an LLM-based verdict via the Hermes API Server).
+End-to-end the pipeline touches seven capabilities across two nodes: six on
+this node (`paperless.upload/search/tag/apply/inbox/watch`) plus the
+`doc.process` verdict capability on NovaForge. Only step 1 is agent software —
+the ingest watcher, artifact transfer and file-back happen without any agent
+in the loop.
+
+## Roles and local infrastructure
+
+| Piece | Where | What it does |
+|---|---|---|
+| Paperless-ngx (Tesseract OCR, deu+eng) | CT 106 | consumes paper, produces text |
+| iowap-paperless node (this repo) | CT 106, next to Paperless (compose network) | watcher (ingest) + writer (apply), six capabilities |
+| NovaForge node | Mac mini | `doc.process`: LLM verdict via the local Hermes API Server (`http://127.0.0.1:8642/v1/chat/completions`, Bearer `API_SERVER_KEY`), `agent.ai` pattern, strict JSON, fenced output stripped |
+| relay | LXC 903 | routes tasks, carries artifacts, runs `flow.run(document-ingest)` |
 
 ## Capabilities (this node)
 
@@ -35,14 +46,19 @@ The paperless node carries both endpoint roles of the pipeline — watcher
 Full handler contract (stdin JSON envelope, stdout result envelope):
 [iowap-node handler contract](https://github.com/iowap-org/iowap-docs/blob/main/node/handlers/contract.md).
 
-## The `doc.process` partner capability (NovaForge)
+## Operating this node with an AI agent
 
-`novaforge/node.yaml` + `novaforge/doc_process.py` — merge the block into
-the NovaForge node's profile and publish. It asks the local Hermes API
-Server (the `agent.ai` pattern: `http://127.0.0.1:8642/v1/chat/completions`,
-Bearer `API_SERVER_KEY`) for a strict-JSON verdict; fenced output is
-stripped. Result fields: `title`, `tags[]`, `correspondent`, `summary`,
-`confidence`.
+Unchanged for humans and tooling: everything above is plain IOWAP — submit
+with `node-cli`, watch results on the relay dashboard.
+
+MCP only becomes relevant when you run nodes with an AI agent (a Hermes
+profile, OpenCode, …): in that case the agent reaches these same capabilities
+through the [iowap-client-mcp](https://github.com/iowap-org/iowap-client-mcp)
+toolkit (`capabilities_list` shows this node's paperless caps with their
+schemas, `task_submit` fires them). There is still no MCP server here — the
+agent side brings the MCP surface, the node stays a plain task executor.
+The `doc.process` verdict additionally needs the API server key in the
+NovaForge environment (`API_SERVER_KEY`), never stored on this node.
 
 ## Deploy (CT 106, next to Paperless)
 
