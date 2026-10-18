@@ -91,9 +91,10 @@ def thumbnail_path(doc: dict, name: str) -> str:
     if not MEDIA_DIR:
         return ""
     doc_id = doc.get("id")
-    for cand in (os.path.join(MEDIA_DIR, "thumbnails", f"webp", f"{doc_id}.webp"),
-                 os.path.join(MEDIA_DIR, "thumbnails", f"{doc_id}.png"),
-                 os.path.join(MEDIA_DIR, "thumbnails", f"{doc_id}.webp")):
+    padded = f"{doc_id:07d}"  # Paperless thumbnails sind zero-padded (0000004.webp)
+    for cand in (os.path.join(MEDIA_DIR, "documents", "thumbnails", f"{padded}.webp"),
+                 os.path.join(MEDIA_DIR, "documents", "thumbnails", f"{padded}.png"),
+                 os.path.join(MEDIA_DIR, "thumbnails", f"{padded}.webp")):
         if os.path.isfile(cand):
             return cand
     import glob
