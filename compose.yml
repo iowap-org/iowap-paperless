@@ -1,4 +1,4 @@
-# Deploy the iowap-paperless node NEXT TO Paperless on the Proxmox CT 106
+# Deploy the iowap-paperless node NEXT TO Paperless on the Proxmox CT 907
 # (T-232). The node talks to Paperless per service name and shares the
 # consume-dir; its own identity lives on a named volume (node_id + token
 # survive restarts, no re-registration). Approve the node in the relay

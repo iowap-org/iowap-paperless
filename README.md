@@ -27,8 +27,8 @@ in the loop.
 
 | Piece | Where | What it does |
 | --- | --- | --- |
-| Paperless-ngx (OCR deu+eng) | CT 106 | consumes paper, produces text |
-| iowap-paperless node | CT 106 | watcher + writer role |
+| Paperless-ngx (OCR deu+eng) | CT 907 | consumes paper, produces text |
+| iowap-paperless node | CT 907 | watcher + writer role |
 | NovaForge node | Mac mini | `doc.process` LLM verdict |
 | relay | LXC 903 | routes tasks, carries artifacts, runs the flow |
 
@@ -56,7 +56,7 @@ consume-poll → artifact upload → flow-submit → keepalive notes until
 stopped. The full handler contract (stdin envelope, stdout envelope) lives
 in iowap-docs at `node/handlers/contract.md`.
 
-## Deploy (CT 106, next to Paperless)
+## Deploy (CT 907, next to Paperless)
 
 ```bash
 docker compose -p iowap-paperless -f compose.yml up -d

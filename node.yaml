@@ -1,6 +1,6 @@
 # iowap-paperless node capability profile (T-232).
 #
-# Deployed on Proxmox CT 106 NEXT TO Paperless-ngx (compose.yml). handlers/
+# Deployed on Proxmox CT 907 NEXT TO Paperless-ngx (compose.yml). handlers/
 # holds executable Python scripts per the node handler contract
 # (stdin = {task_id, capability, input}, stdout = {status, result, error}).
 # Paperless' own Tesseract OCR is the text source — no second OCR here.
