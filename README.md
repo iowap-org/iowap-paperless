@@ -62,7 +62,7 @@ in iowap-docs at `node/handlers/contract.md`.
 docker compose -p iowap-paperless -f compose.yml up -d
 # approve the node in the relay dashboard once
 # start the ingest watcher (long_run task — runs until stopped):
-docker compose exec iowap-paperless node-cli task submit --stage 'paperless.watch:{"input":{}}'
+docker compose exec iowap-paperless iowap-cli task submit --stage 'paperless.watch:{"input":{}}'
 ```
 
 Env: `PAPERLESS_URL` (default `http://paperless:8000` in the compose

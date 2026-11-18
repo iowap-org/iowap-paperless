@@ -9,7 +9,8 @@ the watcher's own lease alive with keepalive notes.
 
 Env: PAPERLESS_URL, PAPERLESS_TOKEN, PAPERLESS_POLL_SECONDS (default 15),
 IOWAP_INGEST (task text template; {doc_id},{title},{content},{filename}
-placeholders). Flow submission goes through node-cli (node identity).
+placeholders). Flow submission goes through iowap-cli (node identity;
+NODE_CLI env override).
 """
 from __future__ import annotations
 
@@ -23,7 +24,7 @@ import time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _paperless import api, api_binary, fail, read_stdin  # noqa: E402
 
-CLI = os.environ.get("NODE_CLI", "node-cli")
+CLI = os.environ.get("NODE_CLI", "iowap-cli")
 POLL = max(5, int(os.environ.get("PAPERLESS_POLL_SECONDS", "15")))
 NOTE_EVERY = 600
 

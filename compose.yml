@@ -6,7 +6,7 @@
 #
 # Run:    docker compose -p iowap-paperless -f compose.yml up -d
 # First:  the watcher capability is a long_run task — submit it once:
-#   docker compose exec iowap-paperless node-cli task submit --stage 'paperless.watch:{}'
+#   docker compose exec iowap-paperless iowap-cli task submit --stage 'paperless.watch:{}'
 #
 # Requires: the paperless service reachable per DNS name `paperless`
 # (add a network alias if Paperless runs in a different project).
